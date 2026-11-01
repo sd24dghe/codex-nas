@@ -1,0 +1,30 @@
+services:
+  codex-nas:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${CODEX_CONTAINER_NAME:-nas-codex-agent}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${CODEX_WEB_PORT:-8787}:8787"
+    environment:
+      CODEX_WEB_PASSWORD: ${CODEX_WEB_PASSWORD:?Set CODEX_WEB_PASSWORD in .env}
+      CODEX_WEB_PORT: "8787"
+      CODEX_WEB_WORKSPACE: /app
+      CODEX_HOME: /root/.codex
+      TZ: ${TZ:-Asia/Hong_Kong}
+    volumes:
+      - ${CODEX_DATA_DIR:-./data}/app:/app
+      - ${CODEX_DATA_DIR:-./data}/codex:/root/.codex
+      - ${CODEX_DATA_DIR:-./data}/claude:/root/.claude
+      - ${CODEX_DATA_DIR:-./data}/config:/root/.config
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    shm_size: "1gb"
+    tty: true
+    stdin_open: true

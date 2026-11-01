@@ -1,0 +1,489 @@
+#!/usr/bin/env bash
+set -uo pipefail
+umask 077
+
+CONTAINER="${CODEX_CONTAINER_NAME:-nas-codex-agent}"
+WORKDIR="/app"
+if [ -n "${CODEX_NAS_DATA_DIR:-}" ]; then
+  CONFIG_DIR="${CODEX_NAS_DATA_DIR}/codex"
+else
+  CONFIG_DIR="$(sudo docker inspect -f '{{range .Mounts}}{{if eq .Destination "/root/.codex"}}{{.Source}}{{end}}{{end}}' "$CONTAINER" 2>/dev/null || true)"
+  CONFIG_DIR="${CONFIG_DIR:-${PWD}/data/codex}"
+fi
+AGENTS_FILE="${CONFIG_DIR}/AGENTS.md"
+FAVORITES_FILE="${CONFIG_DIR}/favorites.tsv"
+THREAD_INDEX="/opt/codex-web/list_threads.py"
+CONFIG_FILE="${CONFIG_DIR}/config.toml"
+PROVIDER_HELPER="/opt/codex-web/provider-config.py"
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'
+  DIM=$'\033[2m'
+  CYAN=$'\033[36m'
+  GREEN=$'\033[32m'
+  YELLOW=$'\033[33m'
+  RED=$'\033[31m'
+  RESET=$'\033[0m'
+else
+  BOLD=""
+  DIM=""
+  CYAN=""
+  GREEN=""
+  YELLOW=""
+  RED=""
+  RESET=""
+fi
+
+clear_screen() {
+  if command -v clear >/dev/null 2>&1 && [ -t 1 ]; then
+    clear
+  fi
+}
+
+need_input() {
+  printf '\n按 Enter 返回菜单...'
+  read -r _
+}
+
+validate_name() {
+  case "$1" in
+    ""|*[!A-Za-z0-9_-]*)
+      printf '名称只能包含英文字母、数字、下划线和连字符。\n' >&2
+      return 1
+      ;;
+  esac
+}
+
+list_sessions() {
+  sudo docker exec "$CONTAINER" tmux list-sessions -F '#{session_name}' 2>/dev/null || true
+}
+
+run_session() {
+  local name="$1"
+  local command="$2"
+  exec sudo docker exec -it -w "$WORKDIR" "$CONTAINER" \
+    tmux new-session -A -s "$name" "$command; exec bash"
+}
+
+new_task() {
+  local default_name="task-$(date +%m%d-%H%M)"
+  local name
+  printf '新任务名称 [%s]: ' "$default_name"
+  read -r name
+  name="${name:-$default_name}"
+  validate_name "$name" || { need_input; return; }
+  run_session "$name" "codex"
+}
+
+resume_last() {
+  local default_name="resume-$(date +%m%d-%H%M)"
+  local name
+  printf '恢复任务名称 [%s]: ' "$default_name"
+  read -r name
+  name="${name:-$default_name}"
+  validate_name "$name" || { need_input; return; }
+  run_session "$name" "codex resume --last"
+}
+
+history_picker() {
+  local default_name="history-$(date +%m%d-%H%M)"
+  local name
+  printf '历史对话任务名称 [%s]: ' "$default_name"
+  read -r name
+  name="${name:-$default_name}"
+  validate_name "$name" || { need_input; return; }
+  run_session "$name" "codex resume --all"
+}
+
+attach_running() {
+  local sessions
+  mapfile -t sessions < <(list_sessions)
+  if [ "${#sessions[@]}" -eq 0 ]; then
+    printf '当前没有运行中的 tmux 任务。\n'
+    need_input
+    return
+  fi
+
+  printf '\n运行中的任务：\n'
+  local i
+  for i in "${!sessions[@]}"; do
+    printf '  %d) %s\n' "$((i + 1))" "${sessions[$i]}"
+  done
+  printf '  0) 返回\n'
+  printf '请选择: '
+  read -r choice
+  [[ "$choice" == "0" ]] && return
+  if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#sessions[@]}" ]; then
+    run_session "${sessions[$((choice - 1))]}" "codex"
+  else
+    printf '无效选择。\n'
+    need_input
+  fi
+}
+
+manage_sessions() {
+  local sessions
+  mapfile -t sessions < <(list_sessions)
+  if [ "${#sessions[@]}" -eq 0 ]; then
+    printf '当前没有运行中的 tmux 任务。\n'
+    need_input
+    return
+  fi
+
+  printf '\n运行中的任务：\n'
+  local i
+  for i in "${!sessions[@]}"; do
+    printf '  %d) %s\n' "$((i + 1))" "${sessions[$i]}"
+  done
+  printf '  0) 返回\n'
+  printf '选择要结束的任务: '
+  read -r choice
+  [[ "$choice" == "0" ]] && return
+  if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#sessions[@]}" ]; then
+    local target="${sessions[$((choice - 1))]}"
+    printf '确认结束任务 %s？[y/N]: ' "$target"
+    read -r confirm
+    if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+      sudo docker exec "$CONTAINER" tmux kill-session -t "$target"
+      printf '已结束 %s。\n' "$target"
+    fi
+    need_input
+  else
+    printf '无效选择。\n'
+    need_input
+  fi
+}
+
+list_threads() {
+  sudo docker exec "$CONTAINER" python3 "$THREAD_INDEX" 2>/dev/null || true
+}
+
+favorite_exists() {
+  local id="$1"
+  [ -f "$FAVORITES_FILE" ] || return 1
+  awk -F '\t' -v id="$id" '$1 == id { found = 1 } END { exit found ? 0 : 1 }' "$FAVORITES_FILE"
+}
+
+pinned_exists() {
+  local id="$1"
+  [ -f "$FAVORITES_FILE" ] || return 1
+  awk -F '\t' -v id="$id" '$1 == id && $2 == "1" { found = 1 } END { exit found ? 0 : 1 }' "$FAVORITES_FILE"
+}
+
+remove_favorite_line() {
+  local id="$1"
+  [ -f "$FAVORITES_FILE" ] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  awk -F '\t' -v id="$id" '$1 != id' "$FAVORITES_FILE" > "$tmp"
+  mv "$tmp" "$FAVORITES_FILE"
+}
+
+toggle_favorite() {
+  local id="$1"
+  local title="$2"
+  if favorite_exists "$id"; then
+    remove_favorite_line "$id"
+    printf '已取消收藏。\n'
+  else
+    mkdir -p "$CONFIG_DIR"
+    printf '%s\t0\t%s\n' "$id" "$title" >> "$FAVORITES_FILE"
+    printf '已加入收藏。\n'
+  fi
+}
+
+toggle_pin() {
+  local id="$1"
+  local title="$2"
+  local tmp
+
+  mkdir -p "$CONFIG_DIR"
+  if ! favorite_exists "$id"; then
+    printf '%s\t1\t%s\n' "$id" "$title" >> "$FAVORITES_FILE"
+    printf '已收藏并置顶。\n'
+    return
+  fi
+
+  tmp="$(mktemp)"
+  awk -F '\t' -v id="$id" '
+    BEGIN { OFS = "\t" }
+    $1 == id {
+      $2 = ($2 == "1" ? "0" : "1")
+    }
+    { print }
+  ' "$FAVORITES_FILE" > "$tmp"
+  mv "$tmp" "$FAVORITES_FILE"
+
+  if pinned_exists "$id"; then
+    printf '已置顶。\n'
+  else
+    printf '已取消置顶。\n'
+  fi
+}
+
+thread_marker() {
+  local id="$1"
+  local archived="$2"
+  local marker=""
+  pinned_exists "$id" && marker="${marker}[顶]"
+  favorite_exists "$id" && marker="${marker}[藏]"
+  [ "$archived" = "1" ] && marker="${marker}[档]"
+  printf '%s' "$marker"
+}
+
+manage_conversations() {
+  while true; do
+    clear_screen
+    printf '%s\n' "${BOLD}会话管理${RESET}"
+
+    local rows=()
+    mapfile -t rows < <(list_threads)
+    if [ "${#rows[@]}" -eq 0 ]; then
+      printf '没有找到 Codex 会话记录。\n'
+      need_input
+      return
+    fi
+
+    local pinned=()
+    local favorites=()
+    local normal=()
+    local row id archived updated title
+
+    for row in "${rows[@]}"; do
+      IFS=$'\t' read -r id archived updated title <<< "$row"
+      if pinned_exists "$id"; then
+        pinned+=("$row")
+      elif favorite_exists "$id"; then
+        favorites+=("$row")
+      else
+        normal+=("$row")
+      fi
+    done
+
+    local ordered=("${pinned[@]}" "${favorites[@]}" "${normal[@]}")
+    local limit="${#ordered[@]}"
+    [ "$limit" -gt 60 ] && limit=60
+
+    local i marker
+    for ((i = 0; i < limit; i++)); do
+      IFS=$'\t' read -r id archived updated title <<< "${ordered[$i]}"
+      marker="$(thread_marker "$id" "$archived")"
+      printf '%2d) %-10s %s %s\n' "$((i + 1))" "$updated" "$marker" "$title"
+    done
+    printf ' 0) 返回\n'
+    printf '选择对话: '
+    read -r choice
+    [[ "$choice" == "0" ]] && return
+
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$limit" ]; then
+      printf '无效选择。\n'
+      need_input
+      continue
+    fi
+
+    IFS=$'\t' read -r id archived updated title <<< "${ordered[$((choice - 1))]}"
+    clear_screen
+    printf '对话: %s\n' "$title"
+    printf '时间: %s\n' "$updated"
+    printf 'ID: %s\n\n' "$id"
+    printf '1) 恢复对话\n'
+    printf '2) 收藏 / 取消收藏\n'
+    printf '3) 置顶 / 取消置顶\n'
+    printf '4) 归档 / 取消归档\n'
+    printf '5) 永久删除\n'
+    printf '0) 返回\n'
+    printf '请选择: '
+    read -r action
+
+    case "$action" in
+      1)
+        run_session "conv-${id:0:8}" "codex resume $id"
+        ;;
+      2)
+        toggle_favorite "$id" "$title"
+        need_input
+        ;;
+      3)
+        toggle_pin "$id" "$title"
+        need_input
+        ;;
+      4)
+        if [ "$archived" = "1" ]; then
+          sudo docker exec "$CONTAINER" codex unarchive "$id"
+          printf '已取消归档。\n'
+        else
+          sudo docker exec "$CONTAINER" codex archive "$id"
+          printf '已归档。\n'
+        fi
+        need_input
+        ;;
+      5)
+        printf '这会永久删除 Codex 对话记录。\n'
+        printf '请输入 DELETE 确认: '
+        read -r confirm
+        if [ "$confirm" = "DELETE" ]; then
+          if sudo docker exec "$CONTAINER" codex delete --force "$id"; then
+            remove_favorite_line "$id"
+            printf '已永久删除。\n'
+          fi
+        else
+          printf '已取消。\n'
+        fi
+        need_input
+        ;;
+      0)
+        ;;
+      *)
+        printf '无效选择。\n'
+        need_input
+        ;;
+    esac
+  done
+}
+
+open_shell() {
+  local name="shell-$(date +%m%d-%H%M)"
+  run_session "$name" "exec bash"
+}
+
+current_language() {
+  if grep -q 'zh-HK' "$AGENTS_FILE" 2>/dev/null; then
+    printf '香港繁体'
+  elif grep -qi 'English' "$AGENTS_FILE" 2>/dev/null; then
+    printf 'English'
+  else
+    printf '简体中文'
+  fi
+}
+
+write_language() {
+  local code="$1"
+  local instruction
+
+  case "$code" in
+    zh-CN)
+      instruction="除非用户明确要求使用其他语言，否则始终使用简体中文回答。代码、命令、路径、标识符和原始输出保持原样。"
+      ;;
+    zh-HK)
+      instruction="除非用戶明確要求使用其他語言，否則始終使用香港繁體中文回答。程式碼、指令、路徑、識別碼和原始輸出保持原樣。"
+      ;;
+    en)
+      instruction="Unless the user explicitly requests another language, always answer in English. Keep code, commands, paths, identifiers, and raw output unchanged."
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  mkdir -p "$CONFIG_DIR"
+  printf '%s\n\n%s\n' '# User preferences' "$instruction" > "$AGENTS_FILE"
+}
+
+choose_language() {
+  while true; do
+    clear_screen
+    printf '%s\n' "${BOLD}回答语言${RESET}"
+    printf '1) 简体中文\n'
+    printf '2) 香港繁体\n'
+    printf '3) English\n'
+    printf '0) 返回\n'
+    printf '当前: %s\n' "$(current_language)"
+    printf '请选择: '
+    read -r choice
+
+    case "$choice" in
+      1) write_language zh-CN ;;
+      2) write_language zh-HK ;;
+      3) write_language en ;;
+      0) return ;;
+      *) printf '无效选择。\n'; need_input; continue ;;
+    esac
+
+    printf '语言设置已更新。\n'
+    need_input
+    return
+  done
+}
+
+configure_provider() {
+  local current_base current_model base_url model wire_choice wire_api api_key
+  current_base=$(grep -m1 '^base_url[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null | sed -E 's/^[^=]+=[[:space:]]*"?([^"]*)"?.*/\1/')
+  current_model=$(grep -m1 '^model[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null | sed -E 's/^[^=]+=[[:space:]]*"?([^"]*)"?.*/\1/')
+
+  clear_screen
+  printf '%s\n' "${BOLD}API 与模型设置${RESET}"
+  printf 'API Key 留空会保留现有 Key。\n\n'
+
+  printf 'API Base URL [%s]: ' "${current_base:-https://api.deepseek.com}"
+  read -r base_url
+  base_url="${base_url:-${current_base:-https://api.deepseek.com}}"
+
+  printf '模型名称 [%s]: ' "${current_model:-deepseek-flash}"
+  read -r model
+  model="${model:-${current_model:-deepseek-flash}}"
+
+  printf '请求协议 [1=Responses, 2=Chat Completions] (1): '
+  read -r wire_choice
+  if [ "$wire_choice" = "2" ]; then
+    wire_api="chat"
+  else
+    wire_api="responses"
+  fi
+
+  printf 'API Key（留空保留）: '
+  stty -echo 2>/dev/null || true
+  IFS= read -r api_key
+  stty echo 2>/dev/null || true
+  printf '\n'
+
+  if printf '%s' "$api_key" | sudo docker exec -i "$CONTAINER" python3 "$PROVIDER_HELPER" \
+    --base-url "$base_url" \
+    --model "$model" \
+    --wire-api "$wire_api" \
+    --api-key-stdin; then
+    printf 'API 设置已保存。新任务将使用新的模型和地址。\n'
+  else
+    printf 'API 设置保存失败。\n' >&2
+  fi
+  unset api_key
+  need_input
+}
+
+while true; do
+  clear_screen
+  printf '%s\n' "${CYAN}${BOLD}====================================${RESET}"
+  printf '%s\n' "${CYAN}${BOLD}          NAS Codex 控制台${RESET}"
+  printf '%s\n' "${CYAN}${BOLD}====================================${RESET}"
+  printf '%s\n' "${DIM}回答语言: $(current_language)${RESET}"
+  printf '\n'
+  printf '%s\n' "${GREEN}1)${RESET} 新建 Codex 任务"
+  printf '%s\n' "${GREEN}2)${RESET} 恢复最近一次对话"
+  printf '%s\n' "${GREEN}3)${RESET} 浏览并恢复历史对话"
+  printf '%s\n' "${GREEN}4)${RESET} 会话管理（收藏/置顶/删除）"
+  printf '%s\n' "${GREEN}5)${RESET} 连接正在运行的任务"
+  printf '%s\n' "${GREEN}6)${RESET} 进入容器 Shell"
+  printf '%s\n' "${YELLOW}7)${RESET} 查看或结束运行中的任务"
+  printf '%s\n' "${YELLOW}8)${RESET} 切换回答语言"
+  printf '%s\n' "${YELLOW}9)${RESET} 切换 API / 模型"
+  printf '%s\n' "${RED}0)${RESET} 退出"
+  printf '%s\n' "${DIM}------------------------------------${RESET}"
+  printf '请选择: '
+
+  read -r choice || exit 0
+  case "$choice" in
+    1) new_task ;;
+    2) resume_last ;;
+    3) history_picker ;;
+    4) manage_conversations ;;
+    5) attach_running ;;
+    6) open_shell ;;
+    7) manage_sessions ;;
+    8) choose_language ;;
+    9) configure_provider ;;
+    0) exit 0 ;;
+    *)
+      printf '无效选择。\n'
+      need_input
+      ;;
+  esac
+done

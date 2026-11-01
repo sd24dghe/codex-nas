@@ -1,0 +1,7 @@
+.DS_Store
+.env
+data/
+node_modules/
+screenshots/
+app/avatar.jpg
+*.log
