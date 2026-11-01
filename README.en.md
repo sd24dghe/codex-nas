@@ -193,10 +193,10 @@ ghcr.io/sd24dghe/codex-nas:latest
 Pin a release in `.env`:
 
 ```text
-CODEX_IMAGE_TAG=v0.1.0
+CODEX_IMAGE_TAG=main
 ```
 
-GitHub Actions publishes images on `main` and version tags. Docker Hub is optional; the GHCR setup requires no extra registry credentials.
+`latest` and `main` track the current image. Future version tags create matching image tags. Docker Hub is optional; the GHCR setup requires no extra registry credentials.
 
 ## API Key Storage
 

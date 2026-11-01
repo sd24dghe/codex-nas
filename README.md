@@ -205,10 +205,10 @@ ghcr.io/sd24dghe/codex-nas:latest
 在 `.env` 中可以固定版本：
 
 ```text
-CODEX_IMAGE_TAG=v0.1.0
+CODEX_IMAGE_TAG=main
 ```
 
-GitHub Actions 会在推送 `main` 或版本 Tag 时自动构建镜像。Docker Hub 完全可选；当前 GHCR 方案不需要额外注册表凭据。
+`latest` 和 `main` 会持续更新；之后的版本 Tag 也会生成对应镜像标签。Docker Hub 完全可选；当前 GHCR 方案不需要额外注册表凭据。
 
 ## API Key 存储
 
