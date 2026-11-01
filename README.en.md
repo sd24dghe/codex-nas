@@ -174,6 +174,30 @@ http://NAS-LAN-IP:8787
 
 Use “Add to Home Screen” in Safari or Chrome. For remote access, prefer Tailscale, Cloudflare Tunnel, or an HTTPS reverse proxy. Do not publish plain HTTP directly to the internet.
 
+## Prebuilt Image And Docker Hub
+
+The default `docker-compose.yml` builds locally and does **not** require a Docker Hub account.
+
+To pull the prebuilt image:
+
+```bash
+docker compose -f docker-compose.image.yml up -d
+```
+
+Image:
+
+```text
+ghcr.io/sd24dghe/codex-nas:latest
+```
+
+Pin a release in `.env`:
+
+```text
+CODEX_IMAGE_TAG=v0.1.0
+```
+
+GitHub Actions publishes images on `main` and version tags. Docker Hub is optional; the GHCR setup requires no extra registry credentials.
+
 ## API Key Storage
 
 The API key is stored only on the host:

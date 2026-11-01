@@ -186,6 +186,30 @@ http://NAS局域网IP:8787
 
 如果需要从外网访问，推荐使用 Tailscale、Cloudflare Tunnel 或配置 HTTPS 反向代理，不要把明文 HTTP 端口直接暴露到公网。
 
+## 预构建镜像与 Docker Hub
+
+默认的 `docker-compose.yml` 会在 NAS 本地构建镜像，**不要求 Docker Hub 账号**。
+
+需要直接拉取预构建镜像时使用：
+
+```bash
+docker compose -f docker-compose.image.yml up -d
+```
+
+镜像地址：
+
+```text
+ghcr.io/sd24dghe/codex-nas:latest
+```
+
+在 `.env` 中可以固定版本：
+
+```text
+CODEX_IMAGE_TAG=v0.1.0
+```
+
+GitHub Actions 会在推送 `main` 或版本 Tag 时自动构建镜像。Docker Hub 完全可选；当前 GHCR 方案不需要额外注册表凭据。
+
 ## API Key 存储
 
 API Key 只保存在宿主机：
