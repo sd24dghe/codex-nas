@@ -2,9 +2,29 @@
 
 **Language:** [简体中文](README.md) | English
 
-Run OpenAI Codex CLI on a home NAS and use it from a browser, phone, tablet, or SSH terminal.
+Run OpenAI Codex CLI on a home NAS from a browser, phone, tablet, or SSH terminal.
 
-This project bundles a lightweight Node.js web console, Codex CLI, tmux, an optional shell menu, and a small local settings layer for switching OpenAI-compatible API providers. It ships without a build step, database server, or frontend framework.
+This is a **web-first** Codex console for NAS owners. Open a browser to start tasks, watch execution, resume conversations, manage history, and switch models. A Shell menu is included for advanced users, but it is not required for everyday use.
+
+The frontend is one `index.html`; the backend is one `server.js`. There is no React/Vue app, no `npm build` step, and no database service. Deploy once and get an app-like experience for the whole household.
+
+> Built with Codex and maintained and tested by [sd24dghe](https://github.com/sd24dghe).
+
+## Screenshots
+
+| Glass login screen | Live task console |
+| --- | --- |
+| ![Login](docs/screenshots/login.png) | ![Console](docs/screenshots/console.png) |
+
+## Why Use It
+
+- **Complete browser workflow**: task creation, progress states, tool calls, conversation history, favorites, and provider settings are designed around Codex rather than a terminal embedded in a page.
+- **Real-time feedback**: SSE streams analysis states, tool commands, command output, final messages, and token usage.
+- **Phone and tablet ready**: responsive layout, touch-sized controls, translucent hierarchy, and dark mode.
+- **Featherweight**: no frontend build, database server, or web framework. Configuration and history remain ordinary files.
+- **Friendly API switching**: edit Base URL, model, API key, and protocol in the browser; discover models and test the connection.
+- **Share it with the household**: deploy once on a NAS and use it from phones, tablets, and laptops.
+- **Terminal power remains available**: the optional `codex-nas` menu and tmux cover advanced SSH workflows.
 
 ## Features
 
@@ -49,47 +69,110 @@ data/codex/favorites.tsv
 - Access to an OpenAI-compatible API
 - Approximately 2 GB of free disk space for the base image and browser dependencies
 
-## Quick Start
+## Step-By-Step Installation
 
-### 1. Configure the web password
+These steps assume you can SSH into your NAS. Copy the commands in order.
+
+### Step 0: Check Docker
+
+```bash
+docker --version
+docker compose version
+```
+
+Continue when both commands print a version.
+
+### Step 1: Download the project
+
+```bash
+git clone https://github.com/sd24dghe/codex-nas.git
+cd codex-nas
+```
+
+You can also download the GitHub ZIP and extract it.
+
+### Step 2: Create the web password
 
 ```bash
 cp .env.example .env
-```
-
-Edit `.env` and replace `CODEX_WEB_PASSWORD` with a long random password.
-
-```bash
 openssl rand -base64 32
 ```
 
-Do not commit `.env`. It is already included in `.gitignore`.
+Open `.env` and set:
 
-### 2. Start the container
+```text
+CODEX_WEB_PASSWORD=your-generated-password
+```
+
+The default data directory is `./data`. To use a NAS volume:
+
+```text
+CODEX_DATA_DIR=/path/on/your/nas/codex-data
+```
+
+Do not commit `.env`; Git ignores it.
+
+### Step 3: Build and start
 
 ```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-Open:
+Wait for `healthy` or `running`.
+
+```bash
+docker compose logs -f --tail=100
+```
+
+Press `Ctrl+C` to leave the log view without stopping the container.
+
+### Step 4: Open the web console
+
+From the same LAN:
 
 ```text
 http://NAS-LAN-IP:8787
 ```
 
-### 3. Configure the API
+Example:
 
-Sign in with `CODEX_WEB_PASSWORD`, then click **API** in the top-right corner.
+```text
+http://192.168.1.20:8787
+```
 
-- **API Base URL**: provider endpoint, for example `https://api.deepseek.com`
-- **Model**: model identifier, for example `deepseek-flash`
-- **API Key**: the provider key
+Sign in with `CODEX_WEB_PASSWORD`.
+
+### Step 5: Configure the model API
+
+Click **API** in the top-right corner:
+
+- **Provider preset**: choose DeepSeek or a custom compatible provider
+- **API Base URL**: provider endpoint
+- **Model**: model identifier
+- **API Key**: provider credential
 - **Protocol**: `Responses API` or `Chat Completions`
 
-Use **读取模型列表** to query the provider's `/models` endpoint, or **保存并测试** to validate the saved settings.
+Click **读取模型列表** to query `/models`, then **保存并测试**.
 
-A blank API Key preserves the previously saved key.
+A blank API Key preserves the existing saved key. New settings affect newly started or resumed tasks; running tasks are not interrupted.
+
+### Step 6: Run the first task
+
+1. Click **New task**
+2. Enter the task
+3. Keep the working directory as `/app`, or choose a subdirectory
+4. Start the task
+
+The page streams analysis states, commands, command output, final messages, and token usage.
+
+### Step 7: Use it from a phone or tablet
+
+```text
+http://NAS-LAN-IP:8787
+```
+
+Use “Add to Home Screen” in Safari or Chrome. For remote access, prefer Tailscale, Cloudflare Tunnel, or an HTTPS reverse proxy. Do not publish plain HTTP directly to the internet.
 
 ## API Key Storage
 
@@ -112,7 +195,9 @@ git grep -nE 'sk-|api[_-]?key|password|token'
 
 Never commit `.env` or `data/`.
 
-## Shell Menu
+## Advanced: Shell Menu
+
+Everyday use can happen entirely in the browser. The Shell menu is intended for batch workflows, long-running tmux tasks, SSH users, and terminal-heavy work.
 
 Install the host-side helper:
 
@@ -202,6 +287,12 @@ docker compose up -d --build
 ```
 
 Codex conversations and provider settings remain in `data/codex`.
+
+## Author
+
+- Bilibili: [sd24dghe](https://space.bilibili.com/1502095394)
+- GitHub: [sd24dghe](https://github.com/sd24dghe)
+- Built with Codex; maintained and tested by sd24dghe.
 
 ## Notes
 

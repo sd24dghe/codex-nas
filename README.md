@@ -2,9 +2,29 @@
 
 **语言：[English](README.en.md) | 简体中文**
 
-在家庭 NAS 上运行 OpenAI Codex CLI，并通过浏览器、手机、平板或 SSH 终端使用。
+在家庭 NAS 上运行 OpenAI Codex CLI，并通过网页、手机、平板或 SSH 终端使用。
 
-项目包含轻量 Node.js Web 控制台、Codex CLI、tmux、可选 Shell 菜单，以及用于切换 OpenAI 兼容 API 的本地设置层。无需前端构建、额外数据库或前端框架。
+这是一个**网页端优先**的 Codex NAS 控制台：打开浏览器就能发起任务、观察执行过程、恢复对话、管理历史和切换模型。项目同时提供 Shell 菜单，但它是面向进阶用户的补充入口，不是使用门槛。
+
+整个前端只有一个 `index.html`，后端只有一个 `server.js`。无需 React/Vue、无需 `npm build`、无需数据库服务，部署后即可获得接近原生 App 的操控体验。
+
+> 本项目由 Codex 协作编写，由 [sd24dghe](https://github.com/sd24dghe) 维护与测试。
+
+## 先看效果
+
+| 毛玻璃登录页 | 实时任务控制台 |
+| --- | --- |
+| ![登录页](docs/screenshots/login.png) | ![控制台](docs/screenshots/console.png) |
+
+## 为什么值得用
+
+- **网页操控体验完整**：不是简单把终端塞进网页，而是围绕 Codex 的工作流设计任务、状态、工具调用、历史和设置。
+- **实时反馈**：通过 SSE 持续显示“正在分析”、工具命令、命令输出、最终回答和 token 使用情况。
+- **手机和平板友好**：响应式布局、触屏尺寸、毛玻璃层级和深色模式，适合在 iPad/手机上查看任务。
+- **轻量到几乎没有部署负担**：无需前端构建、无需数据库、无需额外 Web 框架；数据保存为普通文件。
+- **切换 API 很直观**：网页里可以修改 Base URL、模型、API Key 和协议，支持读取模型列表和测试连接。
+- **全家可共享**：一个 NAS 部署，多台手机、平板、电脑通过局域网或反向代理访问。
+- **本地能力不丢**：需要更强的终端操作时，可继续使用 `codex-nas` Shell 菜单和 tmux。
 
 ## 功能
 
@@ -49,47 +69,122 @@ data/codex/favorites.tsv
 - 可访问 OpenAI 兼容 API
 - 约 2 GB 可用磁盘空间，用于基础镜像和浏览器依赖
 
-## 快速开始
+## 详细部署教程
 
-### 1. 设置网页密码
+以下步骤默认你已经可以通过 SSH 登录 NAS。只需要复制命令并依次执行。
+
+### 第 0 步：确认 Docker 正常
+
+```bash
+docker --version
+docker compose version
+```
+
+如果两个命令都能输出版本号，就可以继续。
+
+### 第 1 步：下载项目
+
+```bash
+git clone https://github.com/sd24dghe/codex-nas.git
+cd codex-nas
+```
+
+没有 Git 时，也可以从 GitHub 下载 ZIP，解压后进入目录。
+
+### 第 2 步：生成网页登录密码
 
 ```bash
 cp .env.example .env
-```
-
-编辑 `.env`，把 `CODEX_WEB_PASSWORD` 替换成足够长的随机密码：
-
-```bash
 openssl rand -base64 32
 ```
 
-不要提交 `.env`，它已经包含在 `.gitignore` 中。
+复制生成出来的随机字符串，然后编辑 `.env`：
 
-### 2. 启动容器
+```text
+CODEX_WEB_PASSWORD=粘贴刚才生成的密码
+```
+
+默认数据保存到项目内的 `data/`。如果你想指定 NAS 存储卷，修改：
+
+```text
+CODEX_DATA_DIR=/你的/NAS/路径/codex-data
+```
+
+`.env` 包含登录密码，已被 `.gitignore` 忽略，不要上传 GitHub。
+
+### 第 3 步：构建并启动
 
 ```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-浏览器打开：
+看到 `healthy` 或 `running` 即可。
+
+查看日志：
+
+```bash
+docker compose logs -f --tail=100
+```
+
+按 `Ctrl+C` 退出日志查看，不会停止容器。
+
+### 第 4 步：打开网页
+
+在同一个局域网内访问：
+
+```text
+http://NAS的局域网IP:8787
+```
+
+例如：
+
+```text
+http://192.168.1.20:8787
+```
+
+打开后会先看到毛玻璃登录页。输入 `.env` 中设置的 `CODEX_WEB_PASSWORD`。
+
+### 第 5 步：配置模型 API
+
+登录后点击右上角 **API**：
+
+- **快速预设**：可以直接选择 DeepSeek 官方 API
+- **API Base URL**：服务商接口地址
+- **模型名称**：模型 ID
+- **API Key**：服务商密钥
+- **请求协议**：`Responses API` 或 `Chat Completions`
+
+推荐先点击 **读取模型列表**。如果能返回模型列表，说明地址和 Key 已基本正确。然后点击 **保存并测试**。
+
+API Key 留空时会保留上一次保存的 Key。配置会立即生效，新任务使用新模型，已经在运行的任务不会中途切换。
+
+### 第 6 步：开始第一个任务
+
+1. 点击 **新建任务**
+2. 填写任务内容
+3. 保持工作目录为 `/app`，或填写 `/app` 下的子目录
+4. 点击开始
+
+页面会实时显示：
+
+- Codex 正在分析
+- 执行的命令
+- 命令输出
+- 最终回答
+- token 使用情况
+
+### 第 7 步：手机或平板访问
+
+手机和 NAS 在同一网络时，直接打开：
 
 ```text
 http://NAS局域网IP:8787
 ```
 
-### 3. 配置 API
+在 Safari 或 Chrome 中选择“添加到主屏幕”，即可像 App 一样启动。
 
-使用 `CODEX_WEB_PASSWORD` 登录，然后点击右上角 **API**：
-
-- **API Base URL**：服务商地址，例如 `https://api.deepseek.com`
-- **模型**：模型 ID，例如 `deepseek-flash`
-- **API Key**：服务商密钥
-- **请求协议**：`Responses API` 或 `Chat Completions`
-
-可以使用 **读取模型列表** 查询服务商的 `/models`，或使用 **保存并测试** 验证配置。
-
-API Key 留空时会保留上一次保存的 Key。
+如果需要从外网访问，推荐使用 Tailscale、Cloudflare Tunnel 或配置 HTTPS 反向代理，不要把明文 HTTP 端口直接暴露到公网。
 
 ## API Key 存储
 
@@ -112,7 +207,9 @@ git grep -nE 'sk-|api[_-]?key|password|token'
 
 不要提交 `.env` 或 `data/`。
 
-## Shell 菜单
+## 进阶：Shell 菜单
+
+大多数日常操作可以完全在网页端完成。Shell 菜单主要适合批量操作、长期后台任务、SSH 工作流和需要终端能力的用户。
 
 安装宿主机脚本：
 
@@ -202,6 +299,12 @@ docker compose up -d --build
 ```
 
 Codex 对话和 API 设置会保留在 `data/codex`。
+
+## 作者与致谢
+
+- Bilibili：[sd24dghe 的主页](https://space.bilibili.com/1502095394)
+- GitHub：[sd24dghe](https://github.com/sd24dghe)
+- 本项目由 Codex 协作编写，sd24dghe 维护与测试。
 
 ## 说明
 
