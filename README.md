@@ -1,39 +1,39 @@
 # Codex NAS Console
 
-**Language:** English | [简体中文](README.zh-CN.md)
+**语言：[English](README.en.md) | 简体中文**
 
-Run OpenAI Codex CLI on a home NAS and use it from a browser, phone, tablet, or SSH terminal.
+在家庭 NAS 上运行 OpenAI Codex CLI，并通过浏览器、手机、平板或 SSH 终端使用。
 
-This project bundles a lightweight Node.js web console, Codex CLI, tmux, an optional shell menu, and a small local settings layer for switching OpenAI-compatible API providers. It ships without a build step, database server, or frontend framework.
+项目包含轻量 Node.js Web 控制台、Codex CLI、tmux、可选 Shell 菜单，以及用于切换 OpenAI 兼容 API 的本地设置层。无需前端构建、额外数据库或前端框架。
 
-## Features
+## 功能
 
-- Web console with password authentication
-- Server-Sent Events for live Codex status, tool calls, and responses
-- Markdown and LaTeX rendering
-- New tasks, recent conversations, history, favorites, pinning, archive, and delete
-- Runtime API settings for base URL, model, API key, and wire protocol
-- Model discovery through an OpenAI-compatible `/models` endpoint
-- Persistent Codex authentication and conversation history
-- Mobile-friendly `codex-nas` tmux menu for SSH clients
-- Docker restart policy and health check
-- API keys stay in a bind-mounted file, not in the image or Compose environment
+- 带密码认证的 Web 控制台
+- 使用 Server-Sent Events 实时显示 Codex 状态、工具调用和回答
+- 渲染 Markdown 和 LaTeX 公式
+- 新建任务、最近对话、历史、收藏、置顶、归档和删除
+- 在网页或 Shell 中修改 Base URL、模型、API Key 和请求协议
+- 通过 OpenAI 兼容 `/models` 接口自动读取模型列表
+- 持久化 Codex 登录状态和对话历史
+- 手机友好的 `codex-nas` tmux SSH 菜单
+- Docker 自动重启与健康检查
+- API Key 保存在绑定挂载文件中，不打进镜像或 Compose 环境变量
 
-## Architecture
+## 架构
 
 ```text
-Browser / phone / iPad
+浏览器 / 手机 / iPad
           |
        SSE + HTTP
           |
-   Node.js web server :8787
+   Node.js Web 服务 :8787
           |
        Codex CLI
           |
-   workspace + ~/.codex
+   工作目录 + ~/.codex
 ```
 
-The web server and shell menu share the same Codex configuration:
+Web 服务与 Shell 菜单共用同一套 Codex 配置：
 
 ```text
 data/codex/config.toml
@@ -42,138 +42,138 @@ data/codex/AGENTS.md
 data/codex/favorites.tsv
 ```
 
-## Requirements
+## 环境要求
 
-- Docker Engine 24+ with Docker Compose v2
-- A NAS, Linux server, or macOS host
-- Access to an OpenAI-compatible API
-- Approximately 2 GB of free disk space for the base image and browser dependencies
+- Docker Engine 24+ 与 Docker Compose v2
+- NAS、Linux 主机或 macOS 主机
+- 可访问 OpenAI 兼容 API
+- 约 2 GB 可用磁盘空间，用于基础镜像和浏览器依赖
 
-## Quick Start
+## 快速开始
 
-### 1. Configure the web password
+### 1. 设置网页密码
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and replace `CODEX_WEB_PASSWORD` with a long random password.
+编辑 `.env`，把 `CODEX_WEB_PASSWORD` 替换成足够长的随机密码：
 
 ```bash
 openssl rand -base64 32
 ```
 
-Do not commit `.env`. It is already included in `.gitignore`.
+不要提交 `.env`，它已经包含在 `.gitignore` 中。
 
-### 2. Start the container
+### 2. 启动容器
 
 ```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-Open:
+浏览器打开：
 
 ```text
-http://NAS-LAN-IP:8787
+http://NAS局域网IP:8787
 ```
 
-### 3. Configure the API
+### 3. 配置 API
 
-Sign in with `CODEX_WEB_PASSWORD`, then click **API** in the top-right corner.
+使用 `CODEX_WEB_PASSWORD` 登录，然后点击右上角 **API**：
 
-- **API Base URL**: provider endpoint, for example `https://api.deepseek.com`
-- **Model**: model identifier, for example `deepseek-flash`
-- **API Key**: the provider key
-- **Protocol**: `Responses API` or `Chat Completions`
+- **API Base URL**：服务商地址，例如 `https://api.deepseek.com`
+- **模型**：模型 ID，例如 `deepseek-flash`
+- **API Key**：服务商密钥
+- **请求协议**：`Responses API` 或 `Chat Completions`
 
-Use **读取模型列表** to query the provider's `/models` endpoint, or **保存并测试** to validate the saved settings.
+可以使用 **读取模型列表** 查询服务商的 `/models`，或使用 **保存并测试** 验证配置。
 
-A blank API Key preserves the previously saved key.
+API Key 留空时会保留上一次保存的 Key。
 
-## API Key Storage
+## API Key 存储
 
-The API key is stored only on the host:
+API Key 只保存在宿主机：
 
 ```text
 data/codex/auth.json
 ```
 
-The server applies mode `0600`. It is not copied into the Docker image, passed in Compose environment variables, or returned by an API response.
+服务端会将该文件权限设置为 `0600`。Key 不会写入 Docker 镜像、Compose 环境变量，也不会通过 API 响应返回。
 
-The web login password is read from `.env` and passed to the container as `CODEX_WEB_PASSWORD`.
+网页登录密码从 `.env` 读取，并以 `CODEX_WEB_PASSWORD` 传入容器。
 
-Before publishing a fork:
+发布项目或 Fork 前建议检查：
 
 ```bash
 git status --ignored
 git grep -nE 'sk-|api[_-]?key|password|token'
 ```
 
-Never commit `.env` or `data/`.
+不要提交 `.env` 或 `data/`。
 
-## Shell Menu
+## Shell 菜单
 
-Install the host-side helper:
+安装宿主机脚本：
 
 ```bash
 sudo scripts/install-shell.sh
 codex-nas
 ```
 
-The script automatically detects the host directory mounted at `/root/.codex` in the running container. To override it:
+脚本会自动识别容器中 `/root/.codex` 对应的宿主机挂载目录。需要手动指定时：
 
 ```bash
 export CODEX_NAS_DATA_DIR=/path/to/data
 ```
 
-The menu provides:
+菜单功能：
 
-1. New Codex task
-2. Resume the latest conversation
-3. Browse history
-4. Favorites, pin, archive, and delete
-5. Attach to a running task
-6. Container shell
-7. Stop running tasks
-8. Response language
-9. API and model settings
+1. 新建 Codex 任务
+2. 恢复最近一次对话
+3. 浏览历史对话
+4. 收藏、置顶、归档和删除
+5. 连接正在运行的任务
+6. 进入容器 Shell
+7. 结束运行中的任务
+8. 切换回答语言
+9. 修改 API 与模型
 
-Each named task runs in a tmux session. Detach with `Ctrl+B`, then `D`. Reconnect with the same task name.
+每个任务在独立 tmux 会话中运行。按 `Ctrl+B` 再按 `D` 脱离，重新执行同名任务即可恢复。
 
-## Mobile And Tablet
+## 手机与平板
 
-Use any SSH client, such as Termius or Blink Shell:
+使用 Termius、Blink Shell 等 SSH 客户端：
 
 ```bash
-ssh your-user@your-nas
+ssh 你的用户名@NAS地址
 codex-nas
 ```
 
-For browser use, add `http://NAS-LAN-IP:8787` to the home screen. Connections dropped from a mobile browser do not stop tasks executed inside tmux.
+浏览器端可以把 `http://NAS局域网IP:8787` 添加到主屏幕。移动浏览器断开不会停止 tmux 中的任务。
 
-## Persistent Data
+## 持久化目录
 
-By default, Compose stores data under `./data`:
+默认情况下，Compose 数据位于 `./data`：
 
 ```text
-data/app        Codex workspace
-data/codex      Codex config, auth, history, favorites
-data/claude     Optional Claude config
-data/config     General config
+data/app        Codex 工作区
+data/codex      Codex 配置、认证、历史、收藏
+data/claude     可选 Claude 配置
+data/config     通用配置
 ```
 
-Change `CODEX_DATA_DIR` in `.env` to use another NAS volume.
+可以在 `.env` 中修改 `CODEX_DATA_DIR`，指定其他 NAS 存储卷。
 
-## Theme Customization
+## 主题定制
 
-- Put a local image at `app/avatar.jpg` before building to replace the default `NAS` avatar.
-- `app/avatar.jpg` is ignored by Git so private or copyrighted artwork is not published accidentally.
-- To use a wallpaper, edit the `--wallpaper-image` value in `app/index.html`. No third-party wallpaper URL is loaded by default.
+- 构建前将本地图片保存为 `app/avatar.jpg`，可替换默认的 `NAS` 头像。
+- `app/avatar.jpg` 被 Git 忽略，避免误发布私人或受版权保护素材。
+- 如需壁纸，请修改 `app/index.html` 中的 `--wallpaper-image`。默认不会加载第三方壁纸。
 
-## Reverse Proxy
+## 反向代理
 
-Caddy example:
+Caddy 示例：
 
 ```caddyfile
 codex.example.com {
@@ -181,9 +181,9 @@ codex.example.com {
 }
 ```
 
-The Node server supports SSE and disables proxy buffering headers for event streams. For public access, put the service behind HTTPS and an additional access layer such as Cloudflare Access, Tailscale, or a VPN.
+Node 服务支持 SSE，并针对事件流禁用代理缓冲。公网访问建议使用 HTTPS，并叠加 Cloudflare Access、Tailscale 或 VPN 等额外访问层。
 
-## GitHub Publishing
+## 发布到 GitHub
 
 ```bash
 git init
@@ -192,21 +192,21 @@ git commit -m "Initial Codex NAS console"
 gh repo create codex-nas --public --source=. --remote=origin --push
 ```
 
-Review the repository contents before pushing. Do not publish your real `.env`, `data/`, API keys, personal domains, or private wallpaper and avatar assets.
+推送前检查仓库内容。不要发布真实的 `.env`、`data/`、API Key、私人域名、壁纸或头像素材。
 
-## Updating
+## 更新
 
 ```bash
 git pull
 docker compose up -d --build
 ```
 
-Codex conversations and provider settings remain in `data/codex`.
+Codex 对话和 API 设置会保留在 `data/codex`。
 
-## Notes
+## 说明
 
-- The web server runs Codex as a child process and streams JSONL events.
-- The container runs Codex with `danger-full-access`. Docker is the isolation boundary; Codex can modify files under the mounted `/app` workspace.
-- The application does not expose hidden chain-of-thought. It shows available Codex statuses, tool calls, outputs, and final messages.
-- Use only one trusted administrator account unless you add a multi-user authentication layer.
-- Add a license before distributing the project if you intend to define reuse terms.
+- Web 服务以子进程方式运行 Codex，并解析 JSONL 事件流。
+- 容器中的 Codex 使用 `danger-full-access`。Docker 是隔离边界，Codex 可以修改挂载到 `/app` 的工作区文件。
+- 应用不会暴露隐藏的思维链，只展示 Codex 提供的状态、工具调用、输出和最终消息。
+- 默认仅支持一个可信管理员账号；如需多用户，请增加独立认证层。
+- 公开分发前请自行选择合适的开源许可证。
