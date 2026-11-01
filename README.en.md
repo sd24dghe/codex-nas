@@ -10,6 +10,8 @@ The frontend is one `index.html`; the backend is one `server.js`. There is no Re
 
 > Built with Codex and maintained and tested by [sd24dghe](https://github.com/sd24dghe).
 
+> **New to Codex?** Docker Compose already installs Codex CLI inside the image. You do **not** need to install Codex CLI on the NAS host. A manual install is required only when running `server.js` outside Docker or using Codex CLI directly on the host.
+
 ## Screenshots
 
 | Glass login screen | Live task console |
@@ -37,6 +39,7 @@ The frontend is one `index.html`; the backend is one `server.js`. There is no Re
 - Persistent Codex authentication and conversation history
 - Mobile-friendly `codex-nas` tmux menu for SSH clients
 - Docker restart policy and health check
+- Codex CLI is installed inside the Docker image; the Shell menu can check or repair it
 - API keys stay in a bind-mounted file, not in the image or Compose environment
 
 ## Architecture
@@ -198,6 +201,29 @@ CODEX_IMAGE_TAG=main
 
 `latest` and `main` track the current image. Future version tags create matching image tags. Docker Hub is optional; the GHCR setup requires no extra registry credentials.
 
+## Running Without Docker: Install Codex CLI
+
+Docker users can skip this section. These steps apply only when running the web server or Codex CLI directly on the host.
+
+Node.js 20 or newer is required:
+
+```bash
+node --version
+npm --version
+npm install -g @openai/codex
+codex --version
+```
+
+Sign in with a ChatGPT/Codex account:
+
+```bash
+codex login --device-auth
+```
+
+For a third-party OpenAI-compatible API, skip ChatGPT login and use the web **API** panel or Shell menu to write `config.toml` and `auth.json`.
+
+The `codex-nas` Shell menu includes **10) Check / install Codex CLI**. It operates inside the existing container and adds no host service or daemon, preserving the lightweight one-HTML, one-Node-backend architecture.
+
 ## API Key Storage
 
 The API key is stored only on the host:
@@ -247,6 +273,7 @@ The menu provides:
 7. Stop running tasks
 8. Response language
 9. API and model settings
+10. Check / install Codex CLI
 
 Each named task runs in a tmux session. Detach with `Ctrl+B`, then `D`. Reconnect with the same task name.
 

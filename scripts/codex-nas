@@ -449,6 +449,38 @@ configure_provider() {
   need_input
 }
 
+check_codex_cli() {
+  local version
+  clear_screen
+  printf '%s\n' "${BOLD}Codex CLI 检查${RESET}"
+
+  if version=$(sudo docker exec "$CONTAINER" sh -lc 'command -v codex >/dev/null 2>&1 && codex --version' 2>/dev/null); then
+    printf '已安装：%s\n' "$version"
+    printf '\n是否重新安装/更新 Codex CLI？[y/N]: '
+    read -r reinstall
+    if [ "$reinstall" != "y" ] && [ "$reinstall" != "Y" ]; then
+      need_input
+      return
+    fi
+  else
+    printf '容器内未找到 Codex CLI，是否立即安装？[Y/n]: '
+    read -r install
+    if [ "$install" = "n" ] || [ "$install" = "N" ]; then
+      need_input
+      return
+    fi
+  fi
+
+  if sudo docker exec "$CONTAINER" npm install -g @openai/codex; then
+    printf '\n安装完成：\n'
+    sudo docker exec "$CONTAINER" codex --version
+    printf 'Codex CLI 已可用。\n'
+  else
+    printf 'Codex CLI 安装失败，请检查容器网络和 npm。\n' >&2
+  fi
+  need_input
+}
+
 while true; do
   clear_screen
   printf '%s\n' "${CYAN}${BOLD}====================================${RESET}"
@@ -465,6 +497,7 @@ while true; do
   printf '%s\n' "${YELLOW}7)${RESET} 查看或结束运行中的任务"
   printf '%s\n' "${YELLOW}8)${RESET} 切换回答语言"
   printf '%s\n' "${YELLOW}9)${RESET} 切换 API / 模型"
+  printf '%s\n' "${YELLOW}10)${RESET} 检查 / 安装 Codex CLI"
   printf '%s\n' "${RED}0)${RESET} 退出"
   printf '%s\n' "${DIM}------------------------------------${RESET}"
   printf '请选择: '
@@ -480,6 +513,7 @@ while true; do
     7) manage_sessions ;;
     8) choose_language ;;
     9) configure_provider ;;
+    10) check_codex_cli ;;
     0) exit 0 ;;
     *)
       printf '无效选择。\n'

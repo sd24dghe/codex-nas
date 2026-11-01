@@ -10,6 +10,8 @@
 
 > 本项目由 Codex 协作编写，由 [sd24dghe](https://github.com/sd24dghe) 维护与测试。
 
+> **小白必读：** 使用 Docker Compose 部署时，Codex CLI 已包含在镜像中，**不需要在 NAS 宿主机上另外安装**。只有不用 Docker、直接运行 `server.js`，或者手动在宿主机使用 Codex CLI 时，才需要自行安装。
+
 ## 先看效果
 
 | 毛玻璃登录页 | 实时任务控制台 |
@@ -37,6 +39,7 @@
 - 持久化 Codex 登录状态和对话历史
 - 手机友好的 `codex-nas` tmux SSH 菜单
 - Docker 自动重启与健康检查
+- Docker 镜像自动安装 Codex CLI，Shell 菜单可检查或修复
 - API Key 保存在绑定挂载文件中，不打进镜像或 Compose 环境变量
 
 ## 架构
@@ -210,6 +213,29 @@ CODEX_IMAGE_TAG=main
 
 `latest` 和 `main` 会持续更新；之后的版本 Tag 也会生成对应镜像标签。Docker Hub 完全可选；当前 GHCR 方案不需要额外注册表凭据。
 
+## 不使用 Docker 时：安装 Codex CLI
+
+Docker 模式无需执行这一节。以下步骤仅适用于直接在宿主机运行 Web 服务或 Codex CLI 的用户。
+
+需要 Node.js 20 或更高版本：
+
+```bash
+node --version
+npm --version
+npm install -g @openai/codex
+codex --version
+```
+
+使用 ChatGPT/Codex 账号登录：
+
+```bash
+codex login --device-auth
+```
+
+如果使用第三方 OpenAI 兼容 API，可以跳过 ChatGPT 登录，改用本项目的 API 设置页面或 Shell 菜单写入 `config.toml` 与 `auth.json`。
+
+`codex-nas` Shell 菜单已经包含 **10) 检查 / 安装 Codex CLI**。它只操作现有 Docker 容器，不会增加宿主机服务，也不会改变项目“单 HTML + 单 Node.js 后端 + 少量 Python 辅助脚本”的轻量结构。
+
 ## API Key 存储
 
 API Key 只保存在宿主机：
@@ -259,6 +285,7 @@ export CODEX_NAS_DATA_DIR=/path/to/data
 7. 结束运行中的任务
 8. 切换回答语言
 9. 修改 API 与模型
+10. 检查 / 安装 Codex CLI
 
 每个任务在独立 tmux 会话中运行。按 `Ctrl+B` 再按 `D` 脱离，重新执行同名任务即可恢复。
 
