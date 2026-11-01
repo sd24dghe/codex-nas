@@ -306,10 +306,31 @@ Codex 对话和 API 设置会保留在 `data/codex`。
 - GitHub：[sd24dghe](https://github.com/sd24dghe)
 - 本项目由 Codex 协作编写，sd24dghe 维护与测试。
 
+## 参与贡献
+
+Bug、兼容性反馈、文档修正和功能讨论都欢迎。提交大型功能前请先开 Issue 讨论，避免重复实现或方向不一致。
+
+- [贡献指南](CONTRIBUTING.md)
+- [Bug 报告](https://github.com/sd24dghe/codex-nas/issues/new?template=bug_report.yml)
+- [功能建议](https://github.com/sd24dghe/codex-nas/issues/new?template=feature_request.yml)
+
+维护者是高中在读学生，回复和处理会尽力而为，感谢理解。
+
+## 安全
+
+请优先使用 GitHub 私有漏洞报告：
+
+https://github.com/sd24dghe/codex-nas/security/advisories/new
+
+备用联系方式是 [B 站私信](https://space.bilibili.com/1502095394)。不要在公开 Issue 中发布 API Key、密码、私人 NAS 地址或对话内容。
+
+## 许可证
+
+本项目使用 [MIT License](LICENSE)。允许使用、复制、修改、合并、发布、分发、再许可和销售，只需保留版权与许可声明。
+
 ## 说明
 
 - Web 服务以子进程方式运行 Codex，并解析 JSONL 事件流。
 - 容器中的 Codex 使用 `danger-full-access`。Docker 是隔离边界，Codex 可以修改挂载到 `/app` 的工作区文件。
 - 应用不会暴露隐藏的思维链，只展示 Codex 提供的状态、工具调用、输出和最终消息。
 - 默认仅支持一个可信管理员账号；如需多用户，请增加独立认证层。
-- 公开分发前请自行选择合适的开源许可证。

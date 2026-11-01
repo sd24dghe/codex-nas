@@ -1,23 +1,37 @@
-# Security
+# Security Policy
 
-## Recommended Deployment
+## Sensitive Reports
 
-- Keep port `8787` on a private LAN or VPN.
-- If public access is required, terminate TLS with Caddy, Nginx, Cloudflare Tunnel, or Tailscale.
-- Use a long, unique `CODEX_WEB_PASSWORD`.
-- Restrict SSH access to keys and keep the NAS operating system updated.
-- Back up `data/codex`, then protect the backup because `auth.json` contains an API key.
+Please use GitHub Private Vulnerability Reporting for security issues:
 
-## Secrets
+https://github.com/sd24dghe/codex-nas/security/advisories/new
 
-The project intentionally separates secrets from source code:
+If that page is unavailable, send a private message through Bilibili:
 
-- Web password: host `.env`, excluded from Git
-- Provider API key: `data/codex/auth.json`, permission `0600`
-- Codex login state: `data/codex/auth.json`
+https://space.bilibili.com/1502095394
 
-The Docker image does not contain `.env` or `data/`.
+Do not publish API keys, login tokens, private NAS addresses, or conversation
+contents in a public issue.
 
-## Reporting
+## What To Include
 
-Do not include API keys, session tokens, conversation contents, or NAS addresses in a public issue. Revoke any exposed key immediately and replace `data/codex/auth.json`.
+- A short description of the issue
+- The affected version or commit
+- Reproduction steps
+- Expected and actual behavior
+- Relevant logs with secrets removed
+- Whether the issue requires public network access
+
+## Maintenance Expectations
+
+This is a volunteer project maintained by a high-school student. There is no
+guaranteed response time or security SLA. Reports will be reviewed on a best-
+effort basis, and responsible disclosure is appreciated.
+
+## Compromised Credentials
+
+If an API key or password may have been exposed:
+
+1. Revoke or rotate the credential at the provider.
+2. Replace `data/codex/auth.json` or `.env` on the NAS.
+3. Review recent Codex and NAS activity.

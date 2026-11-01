@@ -294,10 +294,34 @@ Codex conversations and provider settings remain in `data/codex`.
 - GitHub: [sd24dghe](https://github.com/sd24dghe)
 - Built with Codex; maintained and tested by sd24dghe.
 
+## Contributing
+
+Bug reports, compatibility findings, documentation fixes, and feature
+discussions are welcome. Open an issue before a large feature or refactor.
+
+- [Contributing guide](CONTRIBUTING.md)
+- [Bug report](https://github.com/sd24dghe/codex-nas/issues/new?template=bug_report.yml)
+- [Feature request](https://github.com/sd24dghe/codex-nas/issues/new?template=feature_request.yml)
+
+The maintainer is a high-school student. Reviews and replies are best-effort.
+
+## Security
+
+Use GitHub Private Vulnerability Reporting:
+
+https://github.com/sd24dghe/codex-nas/security/advisories/new
+
+The fallback contact is a [Bilibili private message](https://space.bilibili.com/1502095394). Do not post API keys, passwords, private NAS addresses, or conversation contents in a public issue.
+
+## License
+
+This project is released under the [MIT License](LICENSE). You may use, copy,
+modify, merge, publish, distribute, sublicense, and sell copies while keeping
+the copyright and permission notice.
+
 ## Notes
 
 - The web server runs Codex as a child process and streams JSONL events.
 - The container runs Codex with `danger-full-access`. Docker is the isolation boundary; Codex can modify files under the mounted `/app` workspace.
 - The application does not expose hidden chain-of-thought. It shows available Codex statuses, tool calls, outputs, and final messages.
 - Use only one trusted administrator account unless you add a multi-user authentication layer.
-- Add a license before distributing the project if you intend to define reuse terms.
