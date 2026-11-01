@@ -1,5 +1,7 @@
 # Codex NAS Console
 
+**Language:** English | [简体中文](README.zh-CN.md)
+
 Run OpenAI Codex CLI on a home NAS and use it from a browser, phone, tablet, or SSH terminal.
 
 This project bundles a lightweight Node.js web console, Codex CLI, tmux, an optional shell menu, and a small local settings layer for switching OpenAI-compatible API providers. It ships without a build step, database server, or frontend framework.
@@ -184,7 +186,6 @@ The Node server supports SSE and disables proxy buffering headers for event stre
 ## GitHub Publishing
 
 ```bash
-cd outputs/codex-nas
 git init
 git add .
 git commit -m "Initial Codex NAS console"
