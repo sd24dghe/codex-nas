@@ -477,6 +477,21 @@ function readApiKey() {
   }
 }
 
+function findTomlSection(text, header) {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === header);
+  if (start === -1) return null;
+
+  let end = start + 1;
+  while (end < lines.length && !lines[end].trimStart().startsWith('[')) end += 1;
+  return { lines, start, end };
+}
+
+function readTomlSection(text, header) {
+  const section = findTomlSection(text, header);
+  return section ? section.lines.slice(section.start + 1, section.end).join('\n') : '';
+}
+
 function readProviderSettings() {
   let config = '';
   try {
@@ -484,10 +499,7 @@ function readProviderSettings() {
   } catch {}
 
   const providerId = readTomlString(config, 'model_provider') || 'custom';
-  const sectionMatch = config.match(
-    new RegExp(`^\\[model_providers\\.${escapeRegExp(providerId)}\\]\\s*$([\\s\\S]*?)(?=^\\[|\\s*$)`, 'm')
-  );
-  const section = sectionMatch ? sectionMatch[1] : '';
+  const section = readTomlSection(config, `[model_providers.${providerId}]`);
   const apiKey = readApiKey();
 
   return {
@@ -505,6 +517,22 @@ function setTopLevelTomlValue(text, key, value) {
   const line = `${key} = ${JSON.stringify(value)}`;
   if (pattern.test(text)) return text.replace(pattern, line);
   return `${line}\n${text}`;
+}
+
+function replaceTomlSection(text, header, section) {
+  const match = findTomlSection(text, header);
+  if (!match) return `${text.trimEnd()}\n\n${section.trimEnd()}\n`;
+
+  return [
+    ...match.lines.slice(0, match.start),
+    ...section.trimEnd().split('\n'),
+    '',
+    ...match.lines.slice(match.end),
+  ]
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd()
+    .concat('\n');
 }
 
 function normalizeBaseUrl(value) {
@@ -541,15 +569,8 @@ function updateProviderSettings(body) {
     `base_url = ${JSON.stringify(baseUrl)}`,
     `wire_api = ${JSON.stringify(wireApi)}`,
     'requires_openai_auth = true',
-    '',
   ].join('\n');
-  const sectionPattern = new RegExp(
-    `^\\[model_providers\\.${escapeRegExp(providerId)}\\]\\s*$[\\s\\S]*?(?=^\\[|\\s*$)`,
-    'm'
-  );
-  config = sectionPattern.test(config)
-    ? config.replace(sectionPattern, section)
-    : `${config.trimEnd()}\n\n${section}`;
+  config = replaceTomlSection(config, header, section);
 
   fs.mkdirSync(CODEX_HOME, { recursive: true });
   fs.writeFileSync(CONFIG_FILE, `${config.trimEnd()}\n`, { mode: 0o600 });
@@ -849,6 +870,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`NAS Codex Web listening on http://${HOST}:${PORT} (${RUN_MODE})`);
-});
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    console.log(`NAS Codex Web listening on http://${HOST}:${PORT} (${RUN_MODE})`);
+  });
+}
+
+module.exports = { readTomlSection, replaceTomlSection };

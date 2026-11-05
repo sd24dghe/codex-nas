@@ -28,6 +28,21 @@ def set_top_level(text, key, value):
     return pattern.sub(line, text, count=1) if pattern.search(text) else f"{line}\n{text}"
 
 
+def replace_table(text, header, section):
+    lines = text.splitlines()
+    try:
+        start = next(index for index, line in enumerate(lines) if line.strip() == header)
+    except StopIteration:
+        return f"{text.rstrip()}\n\n{section.rstrip()}\n"
+
+    end = start + 1
+    while end < len(lines) and not lines[end].lstrip().startswith("["):
+        end += 1
+
+    result = lines[:start] + section.rstrip().splitlines() + [""] + lines[end:]
+    return "\n".join(result).rstrip() + "\n"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", required=True)
@@ -63,11 +78,8 @@ def main():
             "",
         ]
     )
-    section_pattern = re.compile(
-        rf'^\[model_providers\.{re.escape(provider_id)}\]\s*$[\s\S]*?(?=^\[|\s*$)',
-        re.M,
-    )
-    text = section_pattern.sub(section, text, count=1) if section_pattern.search(text) else f"{text.rstrip()}\n\n{section}"
+    header = f"[model_providers.{provider_id}]"
+    text = replace_table(text, header, section)
     config_path.write_text(text.rstrip() + "\n")
     os.chmod(config_path, 0o600)
 
