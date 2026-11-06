@@ -156,9 +156,11 @@ Click **API** in the top-right corner:
 - **API Key**: provider credential
 - **Protocol**: `Responses API` or `Chat Completions`
 
-Click **读取模型列表** to query `/models`, then **保存并测试**.
+Click **读取模型列表** or **Test current configuration**, then **Save settings** after validation succeeds.
 
 A blank API Key preserves the existing saved key. New settings affect newly started or resumed tasks; running tasks are not interrupted.
+
+The updated API panel shows the active model, endpoint, protocol, and key status. **Test current configuration** and **Load models** validate the current draft without overwriting saved settings; click **Save settings** only after the check succeeds.
 
 ### Step 6: Run the first task
 
@@ -201,9 +203,9 @@ CODEX_IMAGE_TAG=main
 
 `latest` and `main` track the current image. Future version tags create matching image tags. Docker Hub is optional; the GHCR setup requires no extra registry credentials.
 
-## Running Without Docker: Install Codex CLI
+## Native Node.js Deployment (Without Docker)
 
-Docker users can skip this section. These steps apply only when running the web server or Codex CLI directly on the host.
+Docker users can skip this section. Native deployment is lighter, but Node.js and Codex CLI must be installed and kept running by the host.
 
 Node.js 20 or newer is required:
 
@@ -214,15 +216,32 @@ npm install -g @openai/codex
 codex --version
 ```
 
-Sign in with a ChatGPT/Codex account:
+Download the project and configure its runtime directories and web password:
 
 ```bash
-codex login --device-auth
+git clone https://github.com/sd24dghe/codex-nas.git
+cd codex-nas
+mkdir -p data/app data/codex
+
+export CODEX_WEB_PASSWORD='choose-a-strong-password'
+export CODEX_WEB_PORT=8787
+export CODEX_HOME="$PWD/data/codex"
+export CODEX_WEB_WORKSPACE="$PWD/data/app"
+
+node app/server.js
 ```
 
-For a third-party OpenAI-compatible API, skip ChatGPT login and use the web **API** panel or Shell menu to write `config.toml` and `auth.json`.
+Open `http://NAS-LAN-IP:8787` after `NAS Codex Web listening` appears. Configure the model and API key in the web **API** panel; `codex login` is not required for a third-party compatible API.
 
-The `codex-nas` Shell menu includes **10) Check / install Codex CLI**. It operates inside the existing container and adds no host service or daemon, preserving the lightweight one-HTML, one-Node-backend architecture.
+To keep running after SSH disconnects, start the same `node app/server.js` command through the NAS task scheduler, systemd, or another process supervisor. Define the environment variables there as well. Never commit the web password or API key to GitHub.
+
+The **10) Check / install Codex CLI** item in the `codex-nas` Shell menu operates on the Docker container. Native deployments can update CLI directly with `npm install -g @openai/codex`.
+
+### `config.toml` reports `duplicate key`
+
+`v0.1.1` fixes duplicate `[model_providers.*]` content being appended when API settings are saved. Update the code and restart the Node.js service. If an old config is already damaged, back up `CODEX_HOME/config.toml`, then save the API settings once from the web panel. Do not manually add multiple groups of `name`, `base_url`, or `wire_api` to one provider table.
+
+The fix keeps the lightweight architecture: one `index.html`, one `server.js`, and small helper scripts, with no new daemon or database.
 
 ## API Key Storage
 

@@ -633,6 +633,138 @@
     .sheet-header h2 { margin: 0; font-size: 22px; }
     .sheet-content { padding: 28px; overflow-y: auto; }
 
+    .provider-summary {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 22px;
+      padding: 18px;
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--surface) 84%, transparent);
+      box-shadow: var(--soft-shadow);
+    }
+    .provider-summary-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .provider-summary-title { font-size: 15px; font-weight: 650; }
+    .provider-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--surface-muted);
+      color: var(--secondary);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .provider-badge::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+    .provider-badge.ready::before { background: var(--success); }
+    .provider-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 18px;
+    }
+    .provider-summary-item { min-width: 0; }
+    .provider-summary-item span {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--secondary);
+      font-size: 12px;
+    }
+    .provider-summary-item strong {
+      display: block;
+      overflow: hidden;
+      font-size: 14px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .field-hint {
+      padding-left: 6px;
+      color: var(--secondary);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .provider-input-wrap { position: relative; }
+    .provider-input-wrap input { padding-right: 78px; }
+    .provider-reveal {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: 10px;
+      background: var(--surface-muted);
+      color: var(--secondary);
+      font-size: 12px;
+      font-weight: 650;
+      transform: translateY(-50%);
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+    .provider-reveal:hover { background: var(--separator); color: var(--text); }
+    .provider-reveal:active { transform: translateY(-50%) scale(0.96); }
+    .provider-model-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+    .provider-model-row .button { min-height: 52px; padding-inline: 18px; }
+    .provider-status {
+      min-height: 42px;
+      margin-top: 4px;
+      padding: 11px 14px;
+      border-radius: 12px;
+      background: var(--surface-muted);
+      color: var(--secondary);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .provider-status.success {
+      background: color-mix(in srgb, var(--success) 12%, transparent);
+      color: var(--success);
+    }
+    .provider-status.error {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+    .provider-status.pending {
+      background: color-mix(in srgb, var(--warning) 12%, transparent);
+      color: var(--warning);
+    }
+    .provider-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .provider-actions .button.primary { flex: 1 1 180px; }
+    .advanced-settings {
+      margin: 4px 0 16px;
+      border: 1px solid var(--separator);
+      border-radius: 14px;
+      background: var(--surface-muted);
+    }
+    .advanced-settings summary {
+      padding: 13px 16px;
+      color: var(--secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .advanced-settings[open] summary { border-bottom: 1px solid var(--separator); }
+    .advanced-settings .field { margin: 16px; }
+
     .history-list { display: grid; gap: 12px; }
     .history-row {
       display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
@@ -679,6 +811,19 @@
       .mobile-only { display: block; }
       .message.user { max-width: 90%; }
       .composer-wrap { padding: 16px; }
+      .provider-summary-grid { grid-template-columns: 1fr; }
+      .provider-model-row { grid-template-columns: 1fr; }
+      .provider-actions .button { flex: 1 1 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .provider-reveal,
+      .button,
+      input,
+      textarea,
+      select {
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
@@ -1145,23 +1290,67 @@
     function openProviderSheet() {
       const provider = state.provider || {};
       const form = document.createElement('form');
-      form.className = 'field';
+      form.className = 'field provider-form';
+      form.noValidate = true;
 
-      const intro = document.createElement('div');
-      intro.className = 'history-meta';
-      intro.style.marginBottom = '16px';
-      intro.textContent = provider.hasApiKey
-        ? `当前已保存 API Key，尾号 ${provider.apiKeySuffix || '****'}。留空不会覆盖。`
-        : '尚未保存 API Key。';
-
-      const makeField = (labelText, input) => {
+      const makeField = (labelText, input, hintText = '') => {
         const field = document.createElement('div');
         field.className = 'field';
         const label = document.createElement('label');
         label.textContent = labelText;
         field.append(label, input);
+        if (hintText) {
+          const hint = document.createElement('div');
+          hint.className = 'field-hint';
+          hint.textContent = hintText;
+          field.appendChild(hint);
+        }
         return field;
       };
+
+      const summary = document.createElement('section');
+      summary.className = 'provider-summary';
+      const summaryHead = document.createElement('div');
+      summaryHead.className = 'provider-summary-head';
+      const summaryTitle = document.createElement('div');
+      summaryTitle.className = 'provider-summary-title';
+      summaryTitle.textContent = '当前配置';
+      const summaryBadge = document.createElement('div');
+      summaryBadge.className = 'provider-badge';
+      summaryHead.append(summaryTitle, summaryBadge);
+      const summaryGrid = document.createElement('div');
+      summaryGrid.className = 'provider-summary-grid';
+      const summaryModel = document.createElement('div');
+      const summaryHost = document.createElement('div');
+      const summaryProtocol = document.createElement('div');
+      const summaryKey = document.createElement('div');
+      const addSummaryItem = (item, labelText) => {
+        item.className = 'provider-summary-item';
+        item.innerHTML = `<span>${labelText}</span><strong></strong>`;
+        summaryGrid.appendChild(item);
+      };
+      addSummaryItem(summaryModel, '模型');
+      addSummaryItem(summaryHost, '接口');
+      addSummaryItem(summaryProtocol, '协议');
+      addSummaryItem(summaryKey, 'API Key');
+      summary.append(summaryHead, summaryGrid);
+
+      const providerHost = (value) => {
+        try { return new URL(value).host || value; } catch { return value || '未设置'; }
+      };
+      const protocolLabel = (value) => value === 'chat' ? 'Chat Completions' : 'Responses API';
+      const updateSummary = (next) => {
+        const ready = Boolean(next.hasApiKey && next.baseUrl && next.model);
+        summaryBadge.classList.toggle('ready', ready);
+        summaryBadge.textContent = ready ? '已就绪' : '待完善';
+        summaryModel.querySelector('strong').textContent = next.model || '未设置';
+        summaryHost.querySelector('strong').textContent = providerHost(next.baseUrl);
+        summaryProtocol.querySelector('strong').textContent = protocolLabel(next.wireApi);
+        summaryKey.querySelector('strong').textContent = next.hasApiKey
+          ? `已保存 · 尾号 ${next.apiKeySuffix || '****'}`
+          : '尚未保存';
+      };
+      updateSummary(provider);
 
       const preset = document.createElement('select');
       [
@@ -1195,6 +1384,19 @@
       apiKey.type = 'password';
       apiKey.placeholder = provider.hasApiKey ? '留空保留现有 Key' : '输入 API Key';
       apiKey.autocomplete = 'new-password';
+      const apiKeyWrap = document.createElement('div');
+      apiKeyWrap.className = 'provider-input-wrap';
+      const revealKey = document.createElement('button');
+      revealKey.type = 'button';
+      revealKey.className = 'provider-reveal';
+      revealKey.textContent = '显示';
+      revealKey.setAttribute('aria-pressed', 'false');
+      apiKeyWrap.append(apiKey, revealKey);
+      const apiKeyHint = document.createElement('div');
+      apiKeyHint.className = 'field-hint';
+      apiKeyHint.textContent = provider.hasApiKey
+        ? `已保存，尾号 ${provider.apiKeySuffix || '****'}。留空不会覆盖。`
+        : '尚未保存 API Key。';
 
       const wireApi = document.createElement('select');
       [['responses', 'Responses API'], ['chat', 'Chat Completions']].forEach(([value, labelText]) => {
@@ -1206,16 +1408,19 @@
       });
 
       const status = document.createElement('div');
-      status.className = 'history-meta';
-      status.style.minHeight = '20px';
+      status.className = 'provider-status';
+      status.setAttribute('role', 'status');
+      const setStatus = (message, tone = '') => {
+        status.textContent = message;
+        status.className = `provider-status${tone ? ` ${tone}` : ''}`;
+      };
 
       const actions = document.createElement('div');
-      actions.className = 'history-actions';
-      actions.style.marginTop = '16px';
+      actions.className = 'provider-actions';
 
       const save = makeButton('保存设置', 'button primary');
       save.type = 'submit';
-      const test = makeButton('保存并测试', 'button ghost');
+      const test = makeButton('测试当前配置', 'button ghost');
       test.type = 'button';
       const discover = makeButton('读取模型列表', 'button ghost');
       discover.type = 'button';
@@ -1224,42 +1429,104 @@
       cancel.addEventListener('click', closeSheet);
       actions.append(save, test, discover, cancel);
 
+      const modelRow = document.createElement('div');
+      modelRow.className = 'provider-model-row';
+      modelRow.append(model, discover);
+
+      const advanced = document.createElement('details');
+      advanced.className = 'advanced-settings';
+      const advancedLabel = document.createElement('summary');
+      advancedLabel.textContent = '高级选项';
+      advanced.append(advancedLabel, makeField('请求协议', wireApi));
+
       preset.addEventListener('change', () => {
         if (preset.value === 'deepseek') {
           baseUrl.value = 'https://api.deepseek.com';
           model.value = 'deepseek-flash';
           wireApi.value = 'responses';
+        } else {
+          if (baseUrl.value === 'https://api.deepseek.com') baseUrl.value = '';
+          if (model.value === 'deepseek-flash') model.value = '';
         }
+        setStatus('有未保存的更改。', 'pending');
+      });
+
+      let busy = false;
+      let hasSavedApiKey = Boolean(provider.hasApiKey);
+      const setBusy = (nextBusy) => {
+        busy = nextBusy;
+        test.disabled = nextBusy;
+        discover.disabled = nextBusy;
+        save.disabled = nextBusy;
+      };
+      const draftFromForm = (requireModel = true) => {
+        const address = baseUrl.value.trim();
+        if (!address || !baseUrl.checkValidity()) {
+          setStatus('请输入有效的 API 地址。', 'error');
+          baseUrl.focus();
+          return null;
+        }
+        if (requireModel && !model.value.trim()) {
+          setStatus('请输入模型名称。', 'error');
+          model.focus();
+          return null;
+        }
+        if (!hasSavedApiKey && !apiKey.value.trim()) {
+          setStatus('请输入 API Key。', 'error');
+          apiKey.focus();
+          return null;
+        }
+        return {
+          baseUrl: address,
+          model: model.value.trim(),
+          apiKey: apiKey.value,
+          wireApi: wireApi.value,
+        };
+      };
+
+      [baseUrl, model, apiKey, wireApi].forEach((control) => {
+        control.addEventListener('input', () => {
+          if (!busy) setStatus('有未保存的更改。', 'pending');
+        });
+        control.addEventListener('change', () => {
+          if (!busy) setStatus('有未保存的更改。', 'pending');
+        });
+      });
+
+      revealKey.addEventListener('click', () => {
+        const hidden = apiKey.type === 'password';
+        apiKey.type = hidden ? 'text' : 'password';
+        revealKey.textContent = hidden ? '隐藏' : '显示';
+        revealKey.setAttribute('aria-pressed', String(hidden));
+        apiKey.focus();
       });
 
       const saveProvider = async () => {
-        save.disabled = true;
-        test.disabled = true;
-        status.textContent = '正在保存…';
+        if (busy) return null;
+        const draft = draftFromForm();
+        if (!draft) return null;
+        setBusy(true);
+        setStatus('正在保存设置…', 'pending');
         try {
           const payload = await api('/api/provider', {
             method: 'POST',
-            body: JSON.stringify({
-              baseUrl: baseUrl.value.trim(),
-              model: model.value.trim(),
-              apiKey: apiKey.value,
-              wireApi: wireApi.value,
-            }),
+            body: JSON.stringify(draft),
           });
           state.provider = payload.provider;
+          hasSavedApiKey = payload.provider.hasApiKey;
           apiKey.value = '';
           apiKey.placeholder = payload.provider.hasApiKey ? '留空保留现有 Key' : '输入 API Key';
-          intro.textContent = payload.provider.hasApiKey
-            ? `当前已保存 API Key，尾号 ${payload.provider.apiKeySuffix || '****'}。留空不会覆盖。`
+          apiKeyHint.textContent = payload.provider.hasApiKey
+            ? `已保存，尾号 ${payload.provider.apiKeySuffix || '****'}。留空不会覆盖。`
             : '尚未保存 API Key。';
-          status.textContent = '设置已保存。';
+          updateSummary(payload.provider);
+          setStatus('设置已保存。新任务将使用当前配置。', 'success');
           return payload.provider;
         } catch (error) {
-          status.textContent = error.message;
+          setStatus(error.message, 'error');
           throw error;
         } finally {
-          save.disabled = false;
-          test.disabled = false;
+          setBusy(false);
         }
       };
 
@@ -1272,26 +1539,41 @@
       });
 
       test.addEventListener('click', async () => {
+        if (busy) return;
+        const draft = draftFromForm(false);
+        if (!draft) return;
+        setBusy(true);
+        setStatus('正在测试当前配置…', 'pending');
         try {
-          await saveProvider();
-          status.textContent = '正在测试连接…';
-          const result = await api('/api/provider/test', { method: 'POST' });
-          status.textContent = result.ok
+          const result = await api('/api/provider/test', {
+            method: 'POST',
+            body: JSON.stringify({ baseUrl: draft.baseUrl, apiKey: draft.apiKey }),
+          });
+          setStatus(result.ok
             ? `连接成功，发现 ${result.models?.length || 0} 个模型（HTTP ${result.status}）`
-            : `连接返回 HTTP ${result.status}`;
+            : `连接返回 HTTP ${result.status}`, result.ok ? 'success' : 'error');
         } catch (error) {
-          status.textContent = `连接失败：${error.message}`;
+          setStatus(`连接失败：${error.message}`, 'error');
+        } finally {
+          setBusy(false);
         }
       });
 
       discover.addEventListener('click', async () => {
-        discover.disabled = true;
-        status.textContent = '正在读取模型列表…';
+        if (busy) return;
+        const address = baseUrl.value.trim();
+        if (!address || !baseUrl.checkValidity()) {
+          setStatus('请先填写有效的 API 地址。', 'error');
+          baseUrl.focus();
+          return;
+        }
+        setBusy(true);
+        setStatus('正在读取模型列表…', 'pending');
         try {
           const result = await api('/api/provider/models', {
             method: 'POST',
             body: JSON.stringify({
-              baseUrl: baseUrl.value.trim(),
+              baseUrl: address,
               apiKey: apiKey.value,
             }),
           });
@@ -1302,22 +1584,23 @@
             modelOptions.appendChild(option);
           }
           if (!model.value && result.models?.length) model.value = result.models[0];
-          status.textContent = `读取成功，共 ${result.models?.length || 0} 个模型`;
+          setStatus(`读取成功，共 ${result.models?.length || 0} 个模型。`, 'success');
         } catch (error) {
-          status.textContent = `读取失败：${error.message}`;
+          setStatus(`读取失败：${error.message}`, 'error');
         } finally {
-          discover.disabled = false;
+          setBusy(false);
         }
       });
 
       form.append(
-        intro,
+        summary,
         makeField('快速预设', preset),
-        makeField('API Base URL', baseUrl),
-        makeField('模型名称', model),
+        makeField('API 地址', baseUrl, '填写 OpenAI 兼容接口根地址。'),
+        makeField('模型', modelRow, '可读取模型列表，也可以直接输入模型 ID。'),
         modelOptions,
-        makeField('API Key', apiKey),
-        makeField('请求协议', wireApi),
+        makeField('API Key', apiKeyWrap),
+        apiKeyHint,
+        advanced,
         status,
         actions
       );

@@ -547,40 +547,58 @@ function normalizeBaseUrl(value) {
   return parsed.toString().replace(/\/$/, '');
 }
 
-function updateProviderSettings(body) {
+function normalizeProviderDraft(body) {
   const current = readProviderSettings();
   const providerId = current.providerId || 'custom';
   const model = cleanText(body.model, 200);
   if (!model || /["\r\n]/.test(model)) throw new Error('模型名称无效');
   const baseUrl = normalizeBaseUrl(body.baseUrl);
   const wireApi = body.wireApi === 'chat' ? 'chat' : 'responses';
+  const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+  if (apiKey && (apiKey.length > 1000 || /[\r\n]/.test(apiKey))) throw new Error('API Key 无效');
+  return { providerId, model, baseUrl, wireApi, apiKey };
+}
+
+function writeFileAtomically(file, content) {
+  const temporary = path.join(
+    path.dirname(file),
+    `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`
+  );
+  try {
+    fs.writeFileSync(temporary, content, { mode: 0o600 });
+    fs.renameSync(temporary, file);
+    fs.chmodSync(file, 0o600);
+  } finally {
+    try {
+      fs.unlinkSync(temporary);
+    } catch {}
+  }
+}
+
+function updateProviderSettings(body) {
+  const draft = normalizeProviderDraft(body);
 
   let config = '';
   try {
     config = fs.readFileSync(CONFIG_FILE, 'utf8');
   } catch {}
-  config = setTopLevelTomlValue(config, 'model_provider', providerId);
-  config = setTopLevelTomlValue(config, 'model', model);
+  config = setTopLevelTomlValue(config, 'model_provider', draft.providerId);
+  config = setTopLevelTomlValue(config, 'model', draft.model);
 
-  const header = `[model_providers.${providerId}]`;
+  const header = `[model_providers.${draft.providerId}]`;
   const section = [
     header,
     'name = "Managed API"',
-    `base_url = ${JSON.stringify(baseUrl)}`,
-    `wire_api = ${JSON.stringify(wireApi)}`,
+    `base_url = ${JSON.stringify(draft.baseUrl)}`,
+    `wire_api = ${JSON.stringify(draft.wireApi)}`,
     'requires_openai_auth = true',
   ].join('\n');
   config = replaceTomlSection(config, header, section);
 
   fs.mkdirSync(CODEX_HOME, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, `${config.trimEnd()}\n`, { mode: 0o600 });
-  fs.chmodSync(CONFIG_FILE, 0o600);
-
-  const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
-  if (apiKey) {
-    if (apiKey.length > 1000 || /[\r\n]/.test(apiKey)) throw new Error('API Key 无效');
-    fs.writeFileSync(AUTH_FILE, `${JSON.stringify({ OPENAI_API_KEY: apiKey })}\n`, { mode: 0o600 });
-    fs.chmodSync(AUTH_FILE, 0o600);
+  writeFileAtomically(CONFIG_FILE, `${config.trimEnd()}\n`);
+  if (draft.apiKey) {
+    writeFileAtomically(AUTH_FILE, `${JSON.stringify({ OPENAI_API_KEY: draft.apiKey })}\n`);
   }
 
   return readProviderSettings();
@@ -613,7 +631,7 @@ async function fetchProviderModels(baseUrl, apiKey) {
 }
 
 async function testProviderConnection(settings) {
-  const result = await fetchProviderModels(settings.baseUrl, readApiKey());
+  const result = await fetchProviderModels(settings.baseUrl, settings.apiKey || readApiKey());
   return { ...result, message: `发现 ${result.models.length} 个模型` };
 }
 
@@ -723,8 +741,20 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/provider/test') {
-    const result = await testProviderConnection(readProviderSettings());
-    return json(res, result.ok ? 200 : 502, result);
+    const body = await readBody(req);
+    const current = readProviderSettings();
+    try {
+      const result = await testProviderConnection({
+        baseUrl: normalizeBaseUrl(body.baseUrl || current.baseUrl),
+        apiKey: typeof body.apiKey === 'string' ? body.apiKey.trim() : '',
+      });
+      return json(res, 200, result);
+    } catch (error) {
+      return json(res, error.status || 502, {
+        error: error.message,
+        details: error.details || '',
+      });
+    }
   }
 
   if (req.method === 'POST' && url.pathname === '/api/tasks') {
@@ -876,4 +906,11 @@ if (require.main === module) {
   });
 }
 
-module.exports = { readTomlSection, replaceTomlSection };
+module.exports = {
+  normalizeProviderDraft,
+  readTomlSection,
+  replaceTomlSection,
+  testProviderConnection,
+  updateProviderSettings,
+  writeFileAtomically,
+};

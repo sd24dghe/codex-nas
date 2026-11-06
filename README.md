@@ -158,9 +158,11 @@ http://192.168.1.20:8787
 - **API Key**：服务商密钥
 - **请求协议**：`Responses API` 或 `Chat Completions`
 
-推荐先点击 **读取模型列表**。如果能返回模型列表，说明地址和 Key 已基本正确。然后点击 **保存并测试**。
+推荐先点击 **读取模型列表** 或 **测试当前配置**。验证通过后点击 **保存设置**。
 
 API Key 留空时会保留上一次保存的 Key。配置会立即生效，新任务使用新模型，已经在运行的任务不会中途切换。
+
+新版 API 面板会先显示当前生效的模型、接口、协议和 Key 状态。**测试当前配置**与**读取模型列表**只验证正在编辑的内容，不会覆盖现有配置；确认无误后再点击**保存设置**。
 
 ### 第 6 步：开始第一个任务
 
@@ -213,9 +215,9 @@ CODEX_IMAGE_TAG=main
 
 `latest` 和 `main` 会持续更新；之后的版本 Tag 也会生成对应镜像标签。Docker Hub 完全可选；当前 GHCR 方案不需要额外注册表凭据。
 
-## 不使用 Docker 时：安装 Codex CLI
+## 原生 Node.js 部署（不使用 Docker）
 
-Docker 模式无需执行这一节。以下步骤仅适用于直接在宿主机运行 Web 服务或 Codex CLI 的用户。
+Docker 模式无需执行这一节。原生部署更轻，但需要自己安装并保活 Node.js 与 Codex CLI。
 
 需要 Node.js 20 或更高版本：
 
@@ -226,15 +228,32 @@ npm install -g @openai/codex
 codex --version
 ```
 
-使用 ChatGPT/Codex 账号登录：
+下载项目并设置运行目录与网页登录密码：
 
 ```bash
-codex login --device-auth
+git clone https://github.com/sd24dghe/codex-nas.git
+cd codex-nas
+mkdir -p data/app data/codex
+
+export CODEX_WEB_PASSWORD='自己设置一个强密码'
+export CODEX_WEB_PORT=8787
+export CODEX_HOME="$PWD/data/codex"
+export CODEX_WEB_WORKSPACE="$PWD/data/app"
+
+node app/server.js
 ```
 
-如果使用第三方 OpenAI 兼容 API，可以跳过 ChatGPT 登录，改用本项目的 API 设置页面或 Shell 菜单写入 `config.toml` 与 `auth.json`。
+看到 `NAS Codex Web listening` 后，访问 `http://NAS的局域网IP:8787`。模型与 API Key 直接在本项目的 **API** 面板配置，不需要先运行 `codex login`。
 
-`codex-nas` Shell 菜单已经包含 **10) 检查 / 安装 Codex CLI**。它只操作现有 Docker 容器，不会增加宿主机服务，也不会改变项目“单 HTML + 单 Node.js 后端 + 少量 Python 辅助脚本”的轻量结构。
+关闭 SSH 后仍要运行，可以使用 NAS 自带的任务计划、systemd 或进程守护工具启动同一行 `node app/server.js`。请在守护工具中配置上面的环境变量，不要把密码和 API Key 写进 GitHub。
+
+`codex-nas` Shell 菜单中的 **10) 检查 / 安装 Codex CLI** 只操作 Docker 容器。原生 Node.js 部署可直接运行 `npm install -g @openai/codex` 更新 CLI。
+
+### `config.toml` 报 `duplicate key`
+
+`v0.1.1` 已修复保存 API 时重复追加 `[model_providers.*]` 内容的问题。先更新代码并重启 Node.js 服务。如果旧配置已经损坏，请备份 `CODEX_HOME/config.toml`，然后从 API 面板重新保存一次；不要在同一个提供方表中手工添加多组 `name`、`base_url` 或 `wire_api`。
+
+修复仍保持“单 `index.html` + 单 `server.js` + 少量辅助脚本”的结构，没有新增常驻依赖或数据库。
 
 ## API Key 存储
 
